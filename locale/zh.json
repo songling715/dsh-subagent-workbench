@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "子代理工作台",
+    "description": "在会话里派发、观察、接管并行子代理。",
+    "detail": "docs/DETAIL.md"
+  }
+}

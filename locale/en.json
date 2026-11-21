@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Subagent workbench",
+    "description": "Dispatch, watch, and take over parallel subagents from the current conversation.",
+    "detail": "docs/DETAIL.md"
+  }
+}

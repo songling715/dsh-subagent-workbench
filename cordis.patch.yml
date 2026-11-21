@@ -1,0 +1,4 @@
+- insert:
+    - id: subagent-workbench
+      name: dsh-subagent-workbench
+      config: {}

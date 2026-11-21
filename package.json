@@ -1,0 +1,75 @@
+{
+  "name": "dsh-subagent-workbench",
+  "version": "0.1.0",
+  "description": "Dispatch, watch, and take over parallel subagents from the current DeepSeek Harness conversation.",
+  "author": "songling715",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/songling715/dsh-subagent-workbench.git"
+  },
+  "homepage": "https://github.com/songling715/dsh-subagent-workbench#readme",
+  "bugs": {
+    "url": "https://github.com/songling715/dsh-subagent-workbench/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./src/*": "./src/*",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "COMPATIBILITY.md"
+  ],
+  "sideEffects": [
+    "./lib/client.js"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "prepublishOnly": "node scripts/release-check.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "subagent",
+    "plugin",
+    "parallel-agents"
+  ],
+  "license": "MIT",
+  "engines": {
+    "dsh": ">=0.2.2-rc.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}
