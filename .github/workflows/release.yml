@@ -41,6 +41,10 @@ jobs:
             echo "tag/version mismatch: ${GITHUB_REF_NAME} vs $VERSION"
             exit 1
           fi
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "already published: $NAME@$VERSION; skipping npm publish"
+            exit 0
+          fi
           npm publish --provenance --tag "$TAG" $ACCESS
 
       - name: Pack release artifact
@@ -59,4 +63,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" ./*.tgz \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            $PRE
+            $PRE || \
+          gh release upload "$GITHUB_REF_NAME" ./*.tgz --clobber
