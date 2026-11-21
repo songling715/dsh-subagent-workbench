@@ -131,10 +131,10 @@ GitHub:   dsh plugin --profile web add github:owner/dsh-subagent-workbench
 
 ## 当前项目状态
 
-- 包名：`dsh-subagent-workbench`（发布前用 `npm view` 确认未被占用）；
-- 版本：`0.1.0`；
+- 包名：`dsh-subagent-workbench`；
+- 版本：`0.1.0`，已发布到 npm（`latest = 0.1.0`；首次发布会留下 `0.0.0-stage` 占位版本，这是 npm staged publishing 的正常现象）；
 - GitHub：`https://github.com/songling715/dsh-subagent-workbench`（repository/homepage/bugs 已写入）；
-- 当前安装方式：本地 link（不是发布状态）；
+- 当前本地开发仍用 profile link 安装；
 - storage/KV 禁用，ImportRecord 为内存态；
 - `spike_*` 工具已移除；
-- 需要补：公开仓库创建/首次 push、npm 登录与 `NPM_TOKEN`、首次 npm publish 确认。
+- 后续发布需要配置 `NPM_TOKEN` 或本机 `npm login`；新版本仍可能进入 staged 队列，需要维护者批准。
