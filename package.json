@@ -1,7 +1,7 @@
 {
   "name": "dsh-subagent-workbench",
   "version": "0.1.0",
-  "description": "Dispatch, watch, and take over parallel subagents from the current DeepSeek Harness conversation.",
+  "description": "Manually dispatch context-inheriting subagents for parallel work without leaving the current DeepSeek Harness conversation.",
   "author": "songling715",
   "repository": {
     "type": "git",

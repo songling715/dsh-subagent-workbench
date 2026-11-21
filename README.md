@@ -1,75 +1,176 @@
 # dsh-subagent-workbench
 
-在 DeepSeek Harness 会话里**直接派发、观察、接管并行子代理**的工作台。派发默认走 `fork`：子代理继承本会话已完成的轮次，后台并行，完成后把结果以完成通知送回主会话。
+在 DeepSeek Harness 的当前会话里**手动开一条支线**：派发一个继承当前上下文的子代理，让主线继续干活，支线并行处理另一个任务。
 
-> 当前版本：0.1.0 demo。Host 命令 + 右栏工作台已可用；行内回复、失败/等待状态、token/耗时统计在后续版本补充。
+这不是“再开一个聊天窗口”，而是把你已经积累的项目上下文、约束和结论一起带过去。
 
-## 兼容性
+## 为什么做这个
 
-- DSH `>= 0.2.2-rc.3`（`engines.dsh`）；实测 `0.2.2-rc.5` Desktop / Web。
-- 客户端：`dsh.client.platform = web`；Host 命令 + 右栏 Tab。
-- 依赖内置 `commands`、`subagents`、`client-ui-conversation`、`client-ui-subagent`、`client-store`、`client-ui-sidebar-right`；客户端服务全部用 `ctx.inject` 可选获取。
-- 降级策略、更新检查与契约清单见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+最初的需求是：
 
-## 安装
+> “我这个会话掌握了项目的完整上下文。如果它正在执行任务，而我有一个任务需要同步开展，我不可能新建一个会话去执行——新会话没有原来的上下文。最好的办法就是像 DSH 自主唤起子代理一样，在会话里唤起一个子代理去执行另一个任务。”
 
-本地目录（开发）：
+DSH 本身有子代理能力，但使用上有两个现实问题：
 
-1. DSH → **Plugins** → **Add plugin**，选择本目录。
-2. 或由 Agent 执行 `plugin_manager install_bundle`，`target` 指向本目录的绝对路径。
-3. 安装后**重启 DSH**；会话头部出现「＋ 子代理」。
+1. **入口主要交给模型**：是否调用子代理、什么时候调用，通常由模型决定；用户没有一个“我现在就要派一个”的按钮。
+2. **上下文容易断**：新建普通会话不会自动带上当前会话已经形成的上下文；而当前主会话又不能为了一个支线任务停下来。
 
-从 npm 安装（发布后）：
+这个插件把这件事补成一个**用户可操作的工作台**：
 
 ```text
-plugin_manager install_bundle target: dsh-subagent-workbench
+当前主会话
+  ├─ 主线：继续执行原来的任务
+  └─ 支线：手动 fork 一个子代理，继承已完成轮次，并行处理另一个任务
 ```
 
-从 GitHub 安装源码（跟随默认分支 HEAD）：
+## 它解决什么
+
+### 场景一：主线不动，支线并行
+
+主会话正在做重构，你突然想同时验证另一套方案、查一个依赖、跑一轮测试。
+
+打开「子代理」面板，选择「继承上下文」，输入支线任务，开始运行。主会话不用中断，支线带着当前已完成对话的背景去干活。
+
+### 场景二：用完整上下文做第二件事
+
+你不需要重新解释项目结构、已经排除的方案、刚确认的约束。fork 的子代理直接继承**派发时已经完成的轮次**，从已有结论继续。
+
+### 场景三：结果回收，而不是重开对话
+
+支线结束后，可以在「分支」里选择它的部分提交，按完整、凝练或引用模式导入回主会话；不需要把整段对话复制粘贴回来。
+
+### 和原生子代理的关系
+
+| 能力 | DSH 原生子代理 | 这个工作台 |
+|---|---|---|
+| 谁发起 | 主要由模型调用工具 | 用户可以点按钮 / 发命令 |
+| 上下文 | 取决于调用方式 | fork 明确继承已完成轮次 |
+| 并行 | 支持 | 主线继续，支线后台运行 |
+| 结果回收 | 依赖模型转述或通知 | 分支选择 + 懒导入 |
+| 入口 | 工具调用 | 右栏工作台、头部按钮、`/fork` |
+
+它不替代 DSH 的子代理系统，而是在上面加了一个**用户发起的 fork 入口**和一套**上下文/结果管理界面**。
+
+## 核心模型
+
+### fork：继承上下文
 
 ```text
-dsh plugin --profile web add github:songling715/dsh-subagent-workbench
+/fork -- 任务
 ```
 
-## 使用
+- 使用 DSH 的 fork provider；
+- 种子是**派发时已经完成的轮次**；
+- **不包含当前正在进行的这一轮**；
+- 派发后，父会话的新轮次也不会实时同步给子代理。
+
+所以它是“在某个点切开的分支”，不是持续共享同一个上下文。
+
+### spawn：全新开始
+
+```text
+/spawn -- 任务
+```
+
+不继承对话历史，适合独立任务。
+
+### 完成回执：默认关闭
+
+面板里的「完成后回报主会话」默认关闭：
+
+- **关闭**：子代理独立跑完，不主动给主会话发完成通知；需要时点行内「总结」，让它把结论用 `send_message` 发回 lead。
+- **开启**：结束时把完成通知送回主会话。
+
+这样默认不会打断主线，需要汇总时再收结果。
+
+### 分支导入：把提交拿回来
+
+「分支」Tab 里：
+
+1. 选择「导出自」会话；
+2. 勾选要回收的提交；
+3. 选择「导入到」目标；
+4. 选完整 / 凝练 / 引用；
+5. 导入。
+
+导入是**上下文 graft**，不是 Git merge：不会改写历史，不会 rebase，也不会把父会话变成子会话。
+
+### fork 时间线
+
+「视图」只回答一个问题：**主会话走到哪个提交时，fork 出了谁**。
+
+- 主会话进度条 + 仅 fork 节点；
+- 点节点看该 turn 的任务片段和对应会话；
+- 不再把所有对话铺成三条长列表。
+
+## 快速开始
+
+从 npm 安装（0.1.0 已发布）：
+
+```bash
+dsh plugin --profile web add dsh-subagent-workbench
+```
+
+或者在 DSH 里：
+
+```text
+Plugins → Add plugin → 选择 dsh-subagent-workbench
+```
+
+安装后重启 DSH。会话头部会出现「＋ 子代理」。
+
+打开工作台：
+
+```text
+＋ 子代理
+  → 输入任务
+  → 选择「继承上下文」或「全新开始」
+  → 开始运行
+```
+
+## 使用入口
 
 | 入口 | 行为 |
 |---|---|
-| 头部「＋ 子代理」 | 打开右侧「子代理」面板（右栏 Tab） |
-| 工作台「分支」Tab | 侧栏紧凑操作：选择「导出自」会话 → 勾选提交 → 选择「导入到」目标 → 导入；右上角「视图」打开 fork 时间线（主会话进度 + 仅 fork 节点） |
-| `/fork [--detach] [--name <英文名>] -- <任务>` | 派发继承上下文的子代理；不填名字自动 `agent-N` |
-| `/spawn [--detach] [--name <英文名>] [--model <provider/model>] -- <任务>` | 派发全新上下文的子代理 |
+| 头部「＋ 子代理」 | 打开右侧「子代理」面板 |
+| 工作台「派发」 | 输入任务，fork / spawn，选择是否回报 |
+| 工作台「分支」 | 选来源、选提交、选目标，导入回会话 |
+| 「视图」 | fork 时间线：主会话进度 + fork 节点 |
+| `/fork [--detach] -- 任务` | 命令行派发继承上下文的子代理 |
+| `/spawn [--detach] -- 任务` | 命令行派发全新上下文的子代理 |
 
-面板列表直接读 `subagentCatalog` 投影，分支视图读 `branchIndex` 投影，实时同步；不再有手动刷新按钮，也不执行 `/subagents` 命令，所以不会在主会话里留下 JSON 回执。
+子代理名称是地址，DSH 只接受 1–32 个小写英文字母、数字或连字符；UI 不提供名称输入，自动命名。
 
-> 名称是子代理的**地址**（`send_message`、Team 任务 owner、`reviewer/checker` 路径都用它），DSH 只接受 1–32 个小写英文字母、数字或连字符，不支持中文，也不能叫 `lead`。所以 UI 不提供名称输入，自动命名；中文任务描述就是面板里显示的那一行。
+## 适用与不适用
 
-### 回报模式
+适合：
 
-面板卡片里的「完成后回报主会话」开关：
+- 主线正在执行，但你想并行推进另一个任务；
+- 需要带着当前项目的完整背景去评审、验证、调研；
+- 想让子代理独立跑完，再由你决定是否回收结果；
+- 需要把支线的几条关键提交补回主线。
 
-- **关（默认）**：等价于 `--detach`，走 `delivery: 'caller'`，子代理独立跑完，**不向主会话发完成通知**；需要时点行内「总结」，面板会让子代理用 `send_message` 把总结发给 lead。
-- **开**：子代理结束时把结果以完成通知送回主会话。
+不适合：
 
-面板行现在通过 `subagentCatalog` 投影**实时更新**，整行可点开子会话；行内固定有「停止」，已完成的可续聊行额外有「总结」。
+- 需要父子上下文**实时双向同步**的任务；
+- 需要 Git 式 rebase / merge 历史重写的任务；
+- 需要跨重启持久化 pending ImportRecord 的任务（当前是内存态）；
+- 需要失败重试、等待人工处理等完整状态机的场景（0.1.0 只区分运行中/已结束）。
 
-## 实现方式
+## 兼容性与权限
 
-```text
-Client: lib/client.js（由 src/client.js 构建）
-  ├─ start: ctx.remote.commands.execute(sessionId, '/fork ...')
-  ├─ list:  useProjection('subagentCatalog')（实时）
-  ├─ stop:  ctx.remote.subagents.interruptByUser(childSessionId)
-  └─ open:  ctx.sidebarRight.openResource('dsh-resource://subagentchat/...')
+- DSH `>= 0.2.2-rc.3`（`engines.dsh`）；实测 `0.2.2-rc.5` Desktop / Web。
+- 详见 [COMPATIBILITY.md](COMPATIBILITY.md)。
+- 子代理权限在创建时固定；需要审批的操作会被自动拒绝。想让子代理写文件，先把主会话切到对应权限模式。
+- 并发上限默认 8，深度默认 1（DSH 设置）。
 
-Host: lib/index.js（由 src/index.js 构建）
-  └─ ctx.commands.register({ name: 'fork' | 'spawn' })
-       └─ ctx.subagents.startActivation({ provider, parent, prompt, label, delivery: 'parent' | 'caller', signal, maxDepth })
-```
+## 当前限制（0.1.0）
 
-- 不新增 Host Remote、不新增持久化：列表来自 `subagentCatalog` 投影，子代理本身由 session log 持久化。
-- 子代理权限在创建时固定，需要审批的操作会被自动拒绝；想让子代理写文件，先把主会话切到对应权限模式。
-- fork 的种子是**已完成轮次**的快照：不含当前进行中的一轮，之后父会话的新轮次也不同步。
+- fork 只继承派发时的已完成轮次，不包含当前轮，也不持续同步父会话新轮次。
+- 分支导入是上下文粘贴，不是历史重写。
+- ImportRecord 是内存态；storage/KV 当前禁用，重启会丢失 pending 记录。
+- 已结束会话的 branchIndex 不一定在客户端可用，fork 时间线只显示有数据的节点。
+- 状态只区分运行中 / 已结束；行内回复、失败状态、worktree 隔离尚未实现。
 
 ## 开发
 
@@ -79,43 +180,26 @@ src/client.js         Client 源
 lib/index.js          构建产物（package main）
 lib/client.js         构建产物（exports ./client、dsh.client）
 index.js              Loader 兼容入口（转发 lib/index.js）
-cordis.patch.yml      Bundle patch（插入 Host 行）
+cordis.patch.yml      Bundle patch
 locale/{zh,en}.json   插件标题/描述/详情页
 docs/DETAIL.md        插件详情页
-icon.svg              插件图标
+docs/PUBLISHING.md    发布方案
 scripts/build.mjs     src → lib 构建
 scripts/check.mjs     包格式自检
+scripts/release-check.mjs  发布前检查
 ```
-
-构建与自检：
 
 ```bash
 npm run build
 npm run check
+npm run release:check
 ```
-
-检查项：必填元数据、`main`/`exports` 指向 `lib/`、`files` 包含 `lib`/`src`、文件完整性、locale 字段、`cordis.patch.yml` 与包名一致、`lib/client.js` 的 loader id 与包名一致、`lib` 与 `src` 同步、Host 导出可加载。
 
 ## 发布
 
-完整的 GitHub / npm / 市场发布方案见 [docs/PUBLISHING.md](docs/PUBLISHING.md)。
-
-最短流程：
-
-1. `npm run build && npm run check && npm run release:check`；
-2. `npm pack --dry-run` 核对发布文件；
-3. 补全 `repository` / `homepage` / `bugs`；
-4. 打 `v0.1.0` tag，GitHub Actions 会 `npm publish` 并创建 GitHub Release + `.tgz`；
-5. 在**全新 profile** 安装 npm 包验证；
-6. 给仓库打 `dsh-plugin` topic，并按需提交到 DSH Market / dshbase / awesome 列表。
-
-包名如需 scoped，必须同时改：`package.json` 的 `name`、`cordis.patch.yml` 的 `name`、`src/client.js` 的 loader id。
-
-## 限制（0.1.0）
-
-- 状态只区分「运行中 / 已结束」，失败、等待你处理尚未区分。
-- 不支持行内回复、token/耗时、写域提示、worktree 隔离。
-- 并发上限默认 8，深度默认 1（DSH 设置）。
+- npm：`dsh-subagent-workbench@0.1.0`
+- GitHub：<https://github.com/songling715/dsh-subagent-workbench>
+- Release 流程：[docs/PUBLISHING.md](docs/PUBLISHING.md)
 
 ## License
 

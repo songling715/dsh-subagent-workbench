@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Subagent workbench",
-    "description": "Dispatch, watch, and take over parallel subagents from the current conversation.",
+    "description": "Manually dispatch a context-inheriting subagent so your main conversation keeps moving while another task runs in parallel.",
     "detail": "docs/DETAIL.md"
   }
 }
